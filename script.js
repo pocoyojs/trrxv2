@@ -1171,24 +1171,38 @@ async function verifyAccess() {
     }
 }
 
-// ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON
-if (window.electronAPI) {
-    window.electronAPI.onUpdateAvailable((event, version) => {
-        document.getElementById('update-modal').classList.remove('hidden');
-        document.getElementById('update-status').innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
-    });
+// ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO)
+function initAutoUpdateListeners() {
+    if (window.electronAPI) {
+        console.log("Sistema de Auto-Update vinculado.");
 
-    window.electronAPI.onUpdateProgress((event, percent) => {
-        const p = Math.floor(percent);
-        document.getElementById('update-progress-bar').style.width = p + '%';
-        document.getElementById('update-percent').innerText = p + '%';
-    });
+        window.electronAPI.onUpdateAvailable((event, version) => {
+            const modal = document.getElementById('update-modal');
+            const status = document.getElementById('update-status');
+            if (modal) modal.classList.remove('hidden');
+            if (status) status.innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
+        });
 
-    window.electronAPI.onUpdateDownloaded(() => {
-        document.getElementById('update-status').innerText = "DOWNLOAD CONCLUÍDO!";
-        setTimeout(() => {
-            alert("A atualização foi baixada e será instalada ao reiniciar o aplicativo.");
-            document.getElementById('update-modal').classList.add('hidden');
-        }, 2000);
-    });
+        window.electronAPI.onUpdateProgress((event, percent) => {
+            const p = Math.floor(percent);
+            const bar = document.getElementById('update-progress-bar');
+            const percentTxt = document.getElementById('update-percent');
+            if (bar) bar.style.width = p + '%';
+            if (percentTxt) percentTxt.innerText = p + '%';
+        });
+
+        window.electronAPI.onUpdateDownloaded(() => {
+            const status = document.getElementById('update-status');
+            if (status) status.innerText = "DOWNLOAD CONCLUÍDO!";
+            setTimeout(() => {
+                // Removemos o alert para evitar travar o processo de instalação
+                const modal = document.getElementById('update-modal');
+                if (modal) modal.classList.add('hidden');
+                createToast("ATUALIZAÇÃO PRONTA PARA INSTALAR", "green");
+            }, 2000);
+        });
+    }
 }
+
+// Chame a função logo após o carregamento
+document.addEventListener('DOMContentLoaded', initAutoUpdateListeners);

@@ -2,8 +2,11 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
+// Se instalou o electron-log, mantenha as 2 linhas abaixo. Se não, remova-as.
+autoUpdater.logger = require('electron-log');
+autoUpdater.logger.transports.file.level = 'info';
+
 // --- Configuração do Hazel (Repositório Privado) ---
-// Isso força o app a buscar atualizações através da sua ponte na Vercel
 if (app.isPackaged) {
     autoUpdater.setFeedURL({
         provider: 'generic',
@@ -13,11 +16,16 @@ if (app.isPackaged) {
 
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.allowPrerelease = false; // Garante que pegue apenas versões estáveis
+
+let mainWindow;
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    minWidth: 1100,
+    minHeight: 700,
     resizable: true,
     show: false,
     icon: path.join(__dirname, 'icon.ico'),
@@ -32,40 +40,50 @@ function createWindow() {
   });
 
   Menu.setApplicationMenu(null);
-  win.loadFile('index.html');
+  mainWindow.loadFile('index.html');
 
-  win.once('ready-to-show', () => {
-    win.show();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    
+    // Verificação com pequeno delay para garantir estabilidade
     if (app.isPackaged) {
-      // Verifica se há atualizações usando a URL do Hazel definida acima
-      autoUpdater.checkForUpdatesAndNotify();
+      setTimeout(() => {
+        autoUpdater.checkForUpdatesAndNotify();
+      }, 5000); // 5 segundos após abrir
     }
   });
 
-  // --- Eventos do Auto-Updater para a Interface ---
-  autoUpdater.on('update-available', (info) => {
-    win.webContents.send('update-available', info.version);
-  });
-
-  autoUpdater.on('download-progress', (progressObj) => {
-    win.webContents.send('download-progress', progressObj.percent);
-  });
-
-  autoUpdater.on('update-downloaded', () => {
-    win.webContents.send('update-downloaded');
-    // Opcional: Notificar o usuário via Electron que o app está pronto para reiniciar
-  });
-
-  autoUpdater.on('error', (err) => {
-    console.error('Erro no autoUpdater:', err);
-  });
-
   // --- Bloqueios de Segurança ---
-  win.webContents.on('before-input-event', (event, input) => {
+  mainWindow.webContents.on('before-input-event', (event, input) => {
     const blocked = input.key === 'F12' || (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || (input.control && ['R', 'U'].includes(input.key));
     if (blocked) event.preventDefault();
   });
 }
+
+// --- Eventos do Auto-Updater (Otimizados) ---
+autoUpdater.on('update-available', (info) => {
+    console.log('Versão nova encontrada:', info.version);
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('update-available', info.version);
+    }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('download-progress', progressObj.percent);
+    }
+});
+
+autoUpdater.on('update-downloaded', () => {
+    console.log('Download concluído.');
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('update-downloaded');
+    }
+});
+
+autoUpdater.on('error', (err) => {
+    console.error('Erro no autoUpdater:', err);
+});
 
 app.whenReady().then(createWindow);
 

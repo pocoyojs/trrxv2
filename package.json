@@ -1,8 +1,8 @@
 {
   "name": "meu-app",
-  "version": "1.0.1",
+  "version": "2.0.3",
   "description": "Descrição do meu app TRRX",
-  "author": "Seu Nome <seuemail@exemplo.com>",
+  "author": "pocwyo",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -12,16 +12,18 @@
   "build": {
     "appId": "com.meuapp.desktop",
     "productName": "TRRX",
-"publish": [
-  {
-    "provider": "github",
-    "owner": "pocoyojs",
-    "repo": "trrxv2",
-    "private": true
-  }
-],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "pocoyojs",
+        "repo": "trrxv2",
+        "private": true
+      }
+    ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "icon.ico"
     },
     "nsis": {
@@ -35,6 +37,7 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.6.2"
   }
 }

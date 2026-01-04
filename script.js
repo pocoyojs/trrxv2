@@ -1173,42 +1173,47 @@ async function verifyAccess() {
 
 // ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO E COMPLETO)
 function initAutoUpdateListeners() {
-    if (window.electronAPI) {
-        console.log("Sistema de Auto-Update TRRX Inicializado e Ouvindo.");
+    window.electronAPI.onUpdateAvailable((event, version) => {
+        document.getElementById('update-modal').classList.remove('hidden');
+        document.getElementById('update-status').innerText = `NOVA VERSÃO ${version} ENCONTRADA!`;
+        document.getElementById('splash-screen').style.display = 'flex'; 
+    });
 
-        window.electronAPI.onUpdateAvailable((event, version) => {
-            console.log("Evento recebido: Update Disponível v" + version);
-            const modal = document.getElementById('update-modal');
-            const status = document.getElementById('update-status');
-            if (modal) modal.classList.remove('hidden');
-            if (status) status.innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
-        });
+    window.electronAPI.onUpdateProgress((event, percent) => {
+        const p = Math.floor(percent);
+        document.getElementById('update-progress-bar').style.width = p + '%';
+        document.getElementById('update-percent').innerText = p + '%';
+    });
 
-        window.electronAPI.onUpdateProgress((event, percent) => {
-            const p = Math.floor(percent);
-            const bar = document.getElementById('update-progress-bar');
-            const percentTxt = document.getElementById('update-percent');
-            if (bar) bar.style.width = p + '%';
-            if (percentTxt) percentTxt.innerText = p + '%';
-        });
-
-        window.electronAPI.onUpdateDownloaded((event) => {
-            console.log("Evento recebido: Download concluído");
-            const status = document.getElementById('update-status');
-            if (status) status.innerText = "DOWNLOAD CONCLUÍDO!";
-            
-            setTimeout(() => {
-                const modal = document.getElementById('update-modal');
-                if (modal) modal.classList.add('hidden');
-                if (typeof createToast === 'function') {
-                    createToast("ATUALIZAÇÃO PRONTA! REINICIE O APP.", "green");
-                }
-            }, 2000);
-        });
-    } else {
-        console.error("electronAPI não encontrada. O app está rodando fora do Electron ou o Preload falhou.");
-    }
+    window.electronAPI.onUpdateDownloaded(() => {
+        document.getElementById('update-status').innerText = "REINICIANDO PARA INSTALAR...";
+    });
 }
 
 // Inicializa quando o documento estiver pronto
 document.addEventListener('DOMContentLoaded', initAutoUpdateListeners);
+
+// CONTROLE DE INICIALIZAÇÃO E ATUALIZAÇÃO
+window.addEventListener('load', () => {
+    const splash = document.getElementById('splash-screen');
+    const main = document.getElementById('main-wrapper');
+    const statusTxt = document.getElementById('splash-status');
+
+    // Ativa os ouvintes se estiver no Electron
+    if (window.electronAPI) {
+        initAutoUpdateListeners();
+    }
+
+    // Timer de 3 segundos para o Splash
+    setTimeout(() => {
+        const updateModal = document.getElementById('update-modal');
+        // Se NÃO estiver baixando atualização, libera o app
+        if (updateModal.classList.contains('hidden')) {
+            splash.style.display = 'none';
+            main.style.display = 'block';
+            document.body.style.overflow = 'auto';
+        } else {
+            statusTxt.innerText = "ATUALIZAÇÃO EM CURSO...";
+        }
+    }, 3000);
+});

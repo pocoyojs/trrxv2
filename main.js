@@ -74,27 +74,21 @@ autoUpdater.on('checking-for-update', () => {
     console.log('Verificando se há novas versões...');
 });
 
+// COMUNICAÇÃO COM O FRONT-END
 autoUpdater.on('update-available', (info) => {
-    console.log('Versão nova detectada:', info.version);
-    if (mainWindow && mainWindow.webContents) {
-        // Envia o sinal para o modal azul no index.html
-        mainWindow.webContents.send('update-available', info.version);
-    }
+    if (mainWindow) mainWindow.webContents.send('update-available', info.version);
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-    if (mainWindow && mainWindow.webContents) {
-        // Envia a porcentagem do download para a barra de progresso
-        mainWindow.webContents.send('download-progress', progressObj.percent);
-    }
+    if (mainWindow) mainWindow.webContents.send('download-progress', progressObj.percent);
 });
 
-autoUpdater.on('update-downloaded', (info) => {
-    console.log('Download da v' + info.version + ' concluído.');
-    if (mainWindow && mainWindow.webContents) {
-        // Notifica a interface que o download terminou
-        mainWindow.webContents.send('update-downloaded');
-    }
+autoUpdater.on('update-downloaded', () => {
+    if (mainWindow) mainWindow.webContents.send('update-downloaded');
+    // ESTILO DISCORD: Fecha e instala após 3 segundos do download concluído
+    setTimeout(() => {
+        autoUpdater.quitAndInstall(false, true);
+    }, 3000);
 });
 
 autoUpdater.on('error', (err) => {

@@ -1171,12 +1171,13 @@ async function verifyAccess() {
     }
 }
 
-// ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO)
+// ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO E COMPLETO)
 function initAutoUpdateListeners() {
     if (window.electronAPI) {
-        console.log("Sistema de Auto-Update vinculado.");
+        console.log("Sistema de Auto-Update TRRX Inicializado e Ouvindo.");
 
         window.electronAPI.onUpdateAvailable((event, version) => {
+            console.log("Evento recebido: Update Disponível v" + version);
             const modal = document.getElementById('update-modal');
             const status = document.getElementById('update-status');
             if (modal) modal.classList.remove('hidden');
@@ -1191,18 +1192,23 @@ function initAutoUpdateListeners() {
             if (percentTxt) percentTxt.innerText = p + '%';
         });
 
-        window.electronAPI.onUpdateDownloaded(() => {
+        window.electronAPI.onUpdateDownloaded((event) => {
+            console.log("Evento recebido: Download concluído");
             const status = document.getElementById('update-status');
             if (status) status.innerText = "DOWNLOAD CONCLUÍDO!";
+            
             setTimeout(() => {
-                // Removemos o alert para evitar travar o processo de instalação
                 const modal = document.getElementById('update-modal');
                 if (modal) modal.classList.add('hidden');
-                createToast("ATUALIZAÇÃO PRONTA PARA INSTALAR", "green");
+                if (typeof createToast === 'function') {
+                    createToast("ATUALIZAÇÃO PRONTA! REINICIE O APP.", "green");
+                }
             }, 2000);
         });
+    } else {
+        console.error("electronAPI não encontrada. O app está rodando fora do Electron ou o Preload falhou.");
     }
 }
 
-// Chame a função logo após o carregamento
+// Inicializa quando o documento estiver pronto
 document.addEventListener('DOMContentLoaded', initAutoUpdateListeners);

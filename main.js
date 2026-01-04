@@ -2,11 +2,13 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
-// Se instalou o electron-log, mantenha as 2 linhas abaixo. Se não, remova-as.
+// Configuração de logs para diagnóstico de erros no repositório privado
+// Certifique-se de ter rodado: npm install electron-log
 autoUpdater.logger = require('electron-log');
 autoUpdater.logger.transports.file.level = 'info';
 
 // --- Configuração do Hazel (Repositório Privado) ---
+// O Hazel serve como ponte para o seu repositório privado no GitHub
 if (app.isPackaged) {
     autoUpdater.setFeedURL({
         provider: 'generic',
@@ -14,9 +16,10 @@ if (app.isPackaged) {
     });
 }
 
+// Configurações de comportamento do Updater
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.allowPrerelease = false; // Garante que pegue apenas versões estáveis
+autoUpdater.allowPrerelease = false; // Busca apenas versões estáveis (Published)
 
 let mainWindow;
 
@@ -42,14 +45,19 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   mainWindow.loadFile('index.html');
 
+  // Evento disparado quando a janela é exibida pela primeira vez
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    
-    // Verificação com pequeno delay para garantir estabilidade
+  });
+
+  // CORREÇÃO CRUCIAL: Só inicia a busca por atualizações quando o DOM (HTML/JS) estiver pronto
+  // Isso evita que o sinal de "update-available" seja enviado antes do script.js estar ouvindo.
+  mainWindow.webContents.on('dom-ready', () => {
     if (app.isPackaged) {
+      console.log("Monitorando atualizações via Hazel...");
       setTimeout(() => {
         autoUpdater.checkForUpdatesAndNotify();
-      }, 5000); // 5 segundos após abrir
+      }, 5000); // Delay de 5 segundos para garantir estabilidade da conexão
     }
   });
 
@@ -60,31 +68,40 @@ function createWindow() {
   });
 }
 
-// --- Eventos do Auto-Updater (Otimizados) ---
+// --- Eventos do Auto-Updater (Comunicação com o script.js via Preload) ---
+
+autoUpdater.on('checking-for-update', () => {
+    console.log('Verificando se há novas versões...');
+});
+
 autoUpdater.on('update-available', (info) => {
-    console.log('Versão nova encontrada:', info.version);
+    console.log('Versão nova detectada:', info.version);
     if (mainWindow && mainWindow.webContents) {
+        // Envia o sinal para o modal azul no index.html
         mainWindow.webContents.send('update-available', info.version);
     }
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
     if (mainWindow && mainWindow.webContents) {
+        // Envia a porcentagem do download para a barra de progresso
         mainWindow.webContents.send('download-progress', progressObj.percent);
     }
 });
 
-autoUpdater.on('update-downloaded', () => {
-    console.log('Download concluído.');
+autoUpdater.on('update-downloaded', (info) => {
+    console.log('Download da v' + info.version + ' concluído.');
     if (mainWindow && mainWindow.webContents) {
+        // Notifica a interface que o download terminou
         mainWindow.webContents.send('update-downloaded');
     }
 });
 
 autoUpdater.on('error', (err) => {
-    console.error('Erro no autoUpdater:', err);
+    console.error('Erro crítico no autoUpdater:', err);
 });
 
+// Inicialização do App
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => { 

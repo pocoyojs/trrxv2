@@ -1,6 +1,6 @@
 {
   "name": "meu-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Descrição do meu app TRRX",
   "author": "Seu Nome <seuemail@exemplo.com>",
   "main": "main.js",
@@ -12,12 +12,14 @@
   "build": {
     "appId": "com.meuapp.desktop",
     "productName": "TRRX",
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "https://trrx-update-server.vercel.app"
-      }
-    ],
+"publish": [
+  {
+    "provider": "github",
+    "owner": "pocoyojs",
+    "repo": "trrxv2",
+    "private": true
+  }
+],
     "win": {
       "target": ["nsis"],
       "icon": "icon.ico"

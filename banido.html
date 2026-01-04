@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACESSO BLOQUEADO | TRRX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <style>
+        body { background: #0a0a0c; color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); }
+        .dynamic-bg { background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%) !important; }
+        
+        /* Oculta o conteúdo inicialmente para evitar "piscada" de tela para usuários não banidos */
+        html { visibility: hidden; }
+    </style>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDy2otjYC6vyGrUOPcfKEUBxF1RETHqxJY",
+            authDomain: "trrx-painel.firebaseapp.com",
+            databaseURL: "https://trrx-painel-default-rtdb.firebaseio.com",
+            projectId: "trrx-painel",
+            storageBucket: "trrx-painel.firebasestorage.app",
+            messagingSenderId: "116631388576",
+            appId: "1:116631388576:web:3992b4c7b7e27f0ece24c5"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        async function protectPage() {
+            const token = localStorage.getItem('trrx_token');
+            // Se não houver token, não há como validar, volta para o login
+            if (!token) { window.location.href = 'index.html'; return; }
+
+            try {
+                // Obtém o perfil atual via Token do Discord
+                const res = await fetch('https://discord.com/api/v9/users/@me', {
+                    headers: { 'Authorization': token }
+                });
+
+                if (!res.ok) throw new Error("Token Inválido");
+
+                const userData = await res.json();
+                
+                // Consulta o status de banimento no Firebase Cloud
+                const snapshot = await db.ref(`users/${userData.id}/ban`).once('value');
+                const ban = snapshot.val();
+
+                // SE NÃO ESTIVER BANIDO OU BAN ESTIVER INATIVO: Expulsa da página
+                if (!ban || !ban.active) {
+                    window.location.href = 'index.html';
+                } else {
+                    // SE ESTIVER BANIDO: Renderiza as informações
+                    document.getElementById('ban-reason-text').innerText = ban.reason || "VIOLAÇÃO DOS TERMOS DE USO";
+                    
+                    if (ban.expires === "PERMANENTE") {
+                        document.getElementById('ban-expiry-text').innerText = "INDETERMINADO (PERMANENTE)";
+                    } else {
+                        const date = new Date(ban.expires);
+                        document.getElementById('ban-expiry-text').innerText = date.toLocaleDateString('pt-BR') + " ÀS " + date.toLocaleTimeString('pt-BR');
+                    }
+
+                    // Torna a página visível apenas após a confirmação do ban
+                    document.documentElement.style.visibility = "visible";
+                }
+            } catch (e) { 
+                console.error(e);
+                window.location.href = 'index.html'; 
+            }
+        }
+        
+        window.onload = protectPage;
+    </script>
+</head>
+<body class="h-screen flex items-center justify-center p-6">
+
+    <div class="glass p-12 rounded-[3.5rem] border-red-500/20 max-w-lg w-full text-center shadow-2xl shadow-red-500/10 animate-in">
+        <div class="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg shadow-red-600/40">
+            <i class="fa-solid fa-gavel text-4xl text-white"></i>
+        </div>
+        
+        <h1 class="text-4xl font-black italic uppercase tracking-tighter mb-4 text-white">Acesso <span class="text-red-500">Bloqueado</span></h1>
+        <p class="text-gray-400 text-[10px] uppercase tracking-[0.2em] mb-10 leading-relaxed italic">
+            Sua conta foi suspensa do sistema TRRX por descumprimento das diretrizes da plataforma.
+        </p>
+        
+        <div class="space-y-4 mb-10">
+            <div class="bg-white/5 p-6 rounded-2xl border border-white/5 text-left">
+                <p class="text-[8px] text-gray-500 uppercase font-black mb-1 tracking-widest">Motivo do Banimento</p>
+                <p id="ban-reason-text" class="text-red-400 font-bold italic uppercase text-xs">CARREGANDO...</p>
+            </div>
+
+            <div class="bg-white/5 p-6 rounded-2xl border border-white/5 text-left">
+                <p class="text-[8px] text-gray-500 uppercase font-black mb-1 tracking-widest">Expiração da Sanção</p>
+                <p id="ban-expiry-text" class="text-white font-bold italic uppercase text-xs">VERIFICANDO...</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <a href="https://discord.gg/SEU_LINK" class="bg-white text-black text-[10px] font-black py-4 rounded-full uppercase italic tracking-widest hover:scale-105 transition-all">
+                Contestar Suspensão
+            </a>
+            <button onclick="localStorage.clear(); window.location.href='index.html'" class="text-[9px] font-black uppercase text-gray-600 hover:text-white transition-all tracking-widest italic">
+                Sair da Conta
+            </button>
+        </div>
+    </div>
+
+</body>
+</html>

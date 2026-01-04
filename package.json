@@ -1,0 +1,38 @@
+{
+  "name": "meu-app",
+  "version": "1.0.0",
+  "description": "Descrição do meu app TRRX",
+  "author": "Seu Nome <seuemail@exemplo.com>",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "deploy": "electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "com.meuapp.desktop",
+    "productName": "TRRX",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://trrx-update-server.vercel.app"
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  }
+}

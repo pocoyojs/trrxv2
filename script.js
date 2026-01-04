@@ -1173,22 +1173,56 @@ async function verifyAccess() {
 
 // ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO E COMPLETO)
 function initAutoUpdateListeners() {
-    window.electronAPI.onUpdateAvailable((event, version) => {
-        document.getElementById('update-modal').classList.remove('hidden');
-        document.getElementById('update-status').innerText = `NOVA VERSÃO ${version} ENCONTRADA!`;
-        document.getElementById('splash-screen').style.display = 'flex'; 
-    });
+    if (window.electronAPI) {
+        console.log("%c[TRRX LOG] Sistema de Auto-Update vinculado.", "color: #3b82f6; font-weight: bold;");
+        createToast("SISTEMA DE ATUALIZAÇÃO ATIVO", "green");
 
-    window.electronAPI.onUpdateProgress((event, percent) => {
-        const p = Math.floor(percent);
-        document.getElementById('update-progress-bar').style.width = p + '%';
-        document.getElementById('update-percent').innerText = p + '%';
-    });
+        window.electronAPI.onUpdateAvailable((event, version) => {
+            console.log("[TRRX LOG] Versão detectada no GitHub: v" + version);
+            createToast("VERSÃO V" + version + " ENCONTRADA!", "green");
+            
+            const modal = document.getElementById('update-modal');
+            const status = document.getElementById('update-status');
+            if (modal) modal.classList.remove('hidden');
+            if (status) status.innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
+            document.getElementById('splash-screen').style.display = 'flex'; 
+        });
 
-    window.electronAPI.onUpdateDownloaded(() => {
-        document.getElementById('update-status').innerText = "REINICIANDO PARA INSTALAR...";
-    });
+        window.electronAPI.onUpdateProgress((event, percent) => {
+            const p = Math.floor(percent);
+            const bar = document.getElementById('update-progress-bar');
+            const txt = document.getElementById('update-percent');
+            if (bar) bar.style.width = p + '%';
+            if (txt) txt.innerText = p + '%';
+        });
+
+        window.electronAPI.onUpdateDownloaded(() => {
+            console.log("[TRRX LOG] Download finalizado.");
+            createToast("INSTALANDO ATUALIZAÇÃO...", "green");
+            document.getElementById('update-status').innerText = "INSTALANDO...";
+        });
+
+    } else {
+        console.error("[TRRX LOG] ERRO: electronAPI não encontrada. Você está no navegador?");
+        // Não mostramos toast aqui para não poluir o site normal
+    }
 }
+
+// Inicializa o Splash e os Listeners
+window.addEventListener('load', () => {
+    const splash = document.getElementById('splash-screen');
+    const main = document.getElementById('main-wrapper');
+
+    if (window.electronAPI) initAutoUpdateListeners();
+
+    setTimeout(() => {
+        if (document.getElementById('update-modal').classList.contains('hidden')) {
+            splash.style.display = 'none';
+            main.style.display = 'block';
+            document.body.style.overflow = 'auto';
+        }
+    }, 3000);
+});
 
 // Inicializa quando o documento estiver pronto
 document.addEventListener('DOMContentLoaded', initAutoUpdateListeners);

@@ -71,28 +71,40 @@ function createWindow() {
 // --- Eventos do Auto-Updater (Comunicação com o script.js via Preload) ---
 
 autoUpdater.on('checking-for-update', () => {
-    console.log('Verificando se há novas versões...');
+    console.log('[UPDATER] Verificando servidor Hazel...');
 });
 
-// COMUNICAÇÃO COM O FRONT-END
 autoUpdater.on('update-available', (info) => {
-    if (mainWindow) mainWindow.webContents.send('update-available', info.version);
+    console.log('[UPDATER] Versão encontrada no servidor: ' + info.version);
+    if (mainWindow) {
+        mainWindow.webContents.send('update-available', info.version);
+    }
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-    if (mainWindow) mainWindow.webContents.send('download-progress', progressObj.percent);
+    if (mainWindow) {
+        mainWindow.webContents.send('download-progress', progressObj.percent);
+    }
 });
 
-autoUpdater.on('update-downloaded', () => {
-    if (mainWindow) mainWindow.webContents.send('update-downloaded');
-    // ESTILO DISCORD: Fecha e instala após 3 segundos do download concluído
+autoUpdater.on('update-downloaded', (info) => {
+    console.log('[UPDATER] Download concluído: v' + info.version);
+    if (mainWindow) {
+        mainWindow.webContents.send('update-downloaded');
+    }
+    // Delay de segurança antes de reiniciar
     setTimeout(() => {
         autoUpdater.quitAndInstall(false, true);
     }, 3000);
 });
 
 autoUpdater.on('error', (err) => {
-    console.error('Erro crítico no autoUpdater:', err);
+    console.error('[UPDATER] Erro detectado:', err.message);
+    if (mainWindow) {
+        // Envia o erro real para o console do site para podermos ler
+        mainWindow.webContents.executeJavaScript(`console.error("ERRO NO UPDATER: ${err.message}")`);
+        mainWindow.webContents.executeJavaScript(`if(typeof createToast === 'function') createToast("ERRO AO BUSCAR UPDATE", "red")`);
+    }
 });
 
 // Inicialização do App

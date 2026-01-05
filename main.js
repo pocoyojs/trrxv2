@@ -3,12 +3,20 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
-// Configuração de logs profissional
+// Configuração de logs
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
-log.info('App iniciando...');
 
-// Configurações Globais do AutoUpdater
+// --- CONFIGURAÇÃO DE SEGURANÇA E REDE (CORREÇÃO PARA REPO PRIVADO) ---
+if (app.isPackaged) {
+    autoUpdater.setFeedURL({
+        provider: "github",
+        owner: "pocoyojs",
+        repo: "trrxv2",
+        private: true // OBRIGATÓRIO para repositórios privados
+    });
+}
+
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.allowPrerelease = false;
@@ -17,7 +25,6 @@ let mainWindow;
 
 /**
  * FUNÇÃO DE LOG DE FORÇA BRUTA (GIGANTE NA TELA)
- * Injeta um terminal de diagnóstico diretamente no HTML para capturar o erro exato.
  */
 function bruteForceLog(msg, isError = false) {
     console.log(`[UPDATER DEBUG] ${msg}`);
@@ -85,81 +92,39 @@ function createWindow() {
 
         if (app.isPackaged) {
             setTimeout(() => {
-                bruteForceLog("Chamando autoUpdater.checkForUpdatesAndNotify()...");
+                bruteForceLog("Iniciando busca no GitHub (Modo Autenticado)...");
                 autoUpdater.checkForUpdatesAndNotify().catch(err => {
-                    bruteForceLog("ERRO CRÍTICO NA CHAMADA INICIAL: " + err.stack, true);
+                    bruteForceLog("ERRO NA CHAMADA: " + err.message, true);
+                    if(err.message.includes("404")) {
+                        bruteForceLog("DICA: Erro 404 em repo privado geralmente significa GH_TOKEN ausente no Build.", true);
+                    }
                 });
             }, 4000); 
-        } else {
-            bruteForceLog("Auto-update ignorado: O app não está empacotado.");
-        }
-    });
-
-    // Bloqueios de segurança
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-        if (app.isPackaged) {
-            const blocked = input.key === 'F12' || (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || (input.control && ['R', 'U'].includes(input.key));
-            if (blocked) event.preventDefault();
         }
     });
 
     mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-// ==========================================
-//        EVENTOS DO AUTO-UPDATER
-// ==========================================
-
-autoUpdater.on('checking-for-update', () => {
-    bruteForceLog("Conectando ao GitHub para verificar o arquivo latest.yml...");
-});
-
+// --- EVENTOS DO AUTO-UPDATER ---
+autoUpdater.on('checking-for-update', () => bruteForceLog("Verificando atualizações..."));
 autoUpdater.on('update-available', (info) => {
-    bruteForceLog("SUCESSO: Nova versão detectada!");
-    bruteForceLog("Versão encontrada: v" + info.version);
-    bruteForceLog("Release Date: " + info.releaseDate);
+    bruteForceLog("SUCESSO: v" + info.version + " encontrada!");
     sendToUI('update-available', info.version);
 });
-
-autoUpdater.on('update-not-available', () => {
-    bruteForceLog("O servidor respondeu: Você já possui a versão mais recente.");
+autoUpdater.on('update-not-available', () => bruteForceLog("Você já está na última versão."));
+autoUpdater.on('download-progress', (p) => {
+    bruteForceLog(`Baixando: ${Math.floor(p.percent)}%`);
+    sendToUI('download-progress', p.percent);
 });
-
-autoUpdater.on('download-progress', (progressObj) => {
-    bruteForceLog(`Progresso: ${Math.floor(progressObj.percent)}% | Velocidade: ${Math.floor(progressObj.bytesPerSecond / 1024)} KB/s`);
-    sendToUI('download-progress', progressObj.percent);
-});
-
 autoUpdater.on('update-downloaded', (info) => {
-    bruteForceLog("DOWNLOAD COMPLETO: Preparando instalação...", false);
-    bruteForceLog("O aplicativo irá reiniciar em 5 segundos.");
+    bruteForceLog("Download concluído. Reiniciando em 5s...");
     sendToUI('update-downloaded');
-    
-    setTimeout(() => {
-        if (app.isPackaged) {
-            autoUpdater.quitAndInstall(false, true);
-        }
-    }, 5000);
+    setTimeout(() => { if (app.isPackaged) autoUpdater.quitAndInstall(false, true); }, 5000);
 });
-
 autoUpdater.on('error', (err) => {
-    log.error('Erro fatal no Updater:', err);
-    bruteForceLog("FALHA NO AUTO-UPDATE!", true);
-    bruteForceLog("MENSAGEM: " + err.message, true);
-    bruteForceLog("STACK TRACE: " + err.stack, true);
+    bruteForceLog("FALHA: " + err.message, true);
 });
 
-// ==========================================
-//        INICIALIZAÇÃO DO APP
-// ==========================================
-
-app.whenReady().then(() => {
-    createWindow();
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
-});
-
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
-});
+app.whenReady().then(createWindow);
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

@@ -2,17 +2,15 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
-// Configuração de logs para diagnóstico profundo
-autoUpdater.logger = require('electron-log');
-autoUpdater.logger.transports.file.level = 'info';
-
+// CORREÇÃO 1: Carregamento único e protegido do logger
+// Evita que o app quebre caso o módulo electron-log não seja encontrado ou falhe
 let log;
 try {
     log = require('electron-log');
     autoUpdater.logger = log;
     autoUpdater.logger.transports.file.level = 'info';
 } catch (e) {
-    console.error("Módulo de log não encontrado. Continuando sem logs de arquivo.");
+    console.warn("Módulo electron-log não disponível. Usando console padrão.");
 }
 
 // --- CONFIGURAÇÃO DE SEGURANÇA E REDE ---
@@ -56,12 +54,14 @@ function createWindow() {
     mainWindow.show();
   });
 
+  // CORREÇÃO 2: Verificação de Update vinculada ao DOM-READY
+  // Garante que o sinal de "update-available" só seja enviado quando o HTML/JS estiver pronto para ouvir
   mainWindow.webContents.on('dom-ready', () => {
     if (app.isPackaged) {
       setTimeout(() => {
-        console.log("[UPDATER] Iniciando busca...");
+        sendUpdateLog("Iniciando busca de atualizações...", "blue");
         autoUpdater.checkForUpdatesAndNotify().catch(err => {
-            sendUpdateLog(`ERRO CRÍTICO NA CHAMADA: ${err.message}`, "red");
+            sendUpdateLog(`ERRO NA CHAMADA: ${err.message}`, "red");
         });
       }, 5000); 
     }
@@ -73,54 +73,63 @@ function createWindow() {
   });
 }
 
-// --- FUNÇÃO AUXILIAR DE LOG VISUAL ---
+// CORREÇÃO 3: Função de log protegida contra destruição da janela
+// Impede erros de "Cannot read properties of null" se o evento ocorrer enquanto o app fecha
 function sendUpdateLog(msg, color = "blue") {
-    if (mainWindow) {
-        // Log no console do DevTools
-        mainWindow.webContents.executeJavaScript(`console.log("%c[UPDATER] ${msg}", "color: ${color === 'red' ? '#ef4444' : '#3b82f6'}; font-weight: bold;")`);
-        // Toast se for erro
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        mainWindow.webContents.executeJavaScript(`
+            console.log("%c[UPDATER] ${msg}", "color: ${color === 'red' ? '#ef4444' : '#3b82f6'}; font-weight: bold;");
+        `).catch(() => {});
+
         if (color === "red") {
-            mainWindow.webContents.executeJavaScript(`if(typeof createToast === 'function') createToast("DEBUG: ${msg.substring(0, 30)}...", "red")`);
+            mainWindow.webContents.executeJavaScript(`
+                if(typeof createToast === 'function') createToast("DEBUG: ${msg.substring(0, 30)}...", "red");
+            `).catch(() => {});
         }
     }
 }
 
-// --- EVENTOS DO AUTO-UPDATER COM LOGS ESPECÍFICOS ---
+// --- EVENTOS DO AUTO-UPDATER COM PROTEÇÃO DE ESTADO ---
 
 autoUpdater.on('checking-for-update', () => {
     sendUpdateLog("Conectando ao servidor Hazel...");
 });
 
 autoUpdater.on('update-available', (info) => {
-    sendUpdateLog(`Nova versão detectada: v${info.version}`, "green");
-    if (mainWindow) mainWindow.webContents.send('update-available', info.version);
+    sendUpdateLog(`Versão v${info.version} detectada.`, "green");
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-available', info.version); //
+    }
 });
 
 autoUpdater.on('update-not-available', () => {
-    sendUpdateLog("Nenhuma atualização encontrada (App está atualizado).");
+    sendUpdateLog("App está na última versão.");
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-    if (mainWindow) mainWindow.webContents.send('download-progress', progressObj.percent);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('download-progress', progressObj.percent); //
+    }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-    sendUpdateLog(`Download concluído da v${info.version}. Reiniciando em 3s...`, "green");
-    if (mainWindow) mainWindow.webContents.send('update-downloaded');
-    setTimeout(() => { autoUpdater.quitAndInstall(false, true); }, 3000);
+    sendUpdateLog(`Download da v${info.version} pronto. Reiniciando...`, "green");
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-downloaded'); //
+    }
+    // ESTILO DISCORD: Instalação automática após download
+    setTimeout(() => { 
+        if (app.isPackaged) autoUpdater.quitAndInstall(false, true); 
+    }, 3000);
 });
 
 autoUpdater.on('error', (err) => {
-    let errorDetail = "Erro desconhecido";
-    
-    if (err.message.includes("404")) errorDetail = "404: Servidor Hazel não achou a Release ou o latest.yml no GitHub.";
-    else if (err.message.includes("401")) errorDetail = "401: Token (TOKEN) na Vercel recusado pelo GitHub.";
-    else if (err.message.includes("ENOTFOUND")) errorDetail = "Erro de Conexão: Verifique seu link da Vercel no main.js.";
-    else if (err.message.includes("manifest")) errorDetail = "O arquivo latest.yml está corrompido ou incompleto.";
-    
     console.error(`[UPDATER ERROR] ${err.stack}`);
-    sendUpdateLog(errorDetail, "red");
+    sendUpdateLog(`ERRO: ${err.message}`, "red"); //
 });
 
 app.whenReady().then(createWindow);
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+app.on('window-all-closed', () => { 
+    if (process.platform !== 'darwin') app.quit(); 
+});

@@ -1256,3 +1256,23 @@ window.addEventListener('load', () => {
         }
     }, 3000);
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    // CORREÇÃO: Inicialização segura apenas se a API injetada existir
+    if (window.electronAPI) {
+        window.electronAPI.onUpdateAvailable((event, version) => {
+            const modal = document.getElementById('update-modal');
+            if (modal) modal.classList.remove('hidden');
+        });
+
+        window.electronAPI.onUpdateProgress((event, percent) => {
+            const bar = document.getElementById('update-progress-bar');
+            if (bar) bar.style.width = Math.floor(percent) + '%';
+        });
+
+        window.electronAPI.onUpdateDownloaded(() => {
+            const status = document.getElementById('update-status');
+            if (status) status.innerText = "REINICIANDO...";
+        });
+    }
+});

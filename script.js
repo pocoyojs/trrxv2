@@ -477,10 +477,32 @@ function switchView(v, btn) {
 
 function createToast(msg, color) {
     let t = document.getElementById('trrx-toast') || document.createElement('div');
-    t.id = 'trrx-toast'; document.body.appendChild(t);
-    t.className = `fixed bottom-10 right-10 ${color === 'green' ? 'green-gradient' : 'bg-red-600'} px-8 py-4 rounded-2xl shadow-2xl z-[100] font-black italic uppercase text-xs tracking-widest text-white transition-all duration-500`;
-    t.innerText = msg; t.style.opacity = '1';
-    setTimeout(() => { t.style.opacity = '0'; }, 3000);
+    t.id = 'trrx-toast';
+    document.body.appendChild(t);
+
+    if (color === 'red') {
+        // MODO DEBUG GIGANTE: Centralizado, largura total e texto visível
+        t.className = `fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 p-10 text-center animate-in`;
+        t.innerHTML = `
+            <div class="bg-red-600 p-10 rounded-[3rem] shadow-[0_0_50px_rgba(220,38,38,0.5)] max-w-4xl w-full border-4 border-white">
+                <i class="fa-solid fa-circle-exclamation text-6xl mb-6 text-white animate-pulse"></i>
+                <h1 class="text-4xl font-black text-white mb-6 uppercase italic tracking-tighter">ERRO DE SISTEMA DETECTADO</h1>
+                <div class="bg-black/40 p-6 rounded-2xl text-left border border-white/20 overflow-auto max-h-[400px]">
+                    <code class="text-xl font-mono text-yellow-300 break-all">${msg}</code>
+                </div>
+                <p class="mt-6 text-white/70 text-xs font-bold uppercase tracking-widest">Aperte CTRL + R para recarregar ou CTRL + SHIFT + I para abrir o console completo</p>
+                <button onclick="this.parentElement.parentElement.style.opacity='0'; setTimeout(()=>this.parentElement.parentElement.remove(), 500)" class="mt-8 bg-white text-red-600 px-10 py-4 rounded-full font-black uppercase italic hover:scale-105 transition-all">Fechar Alerta</button>
+            </div>
+        `;
+        t.style.opacity = '1';
+        // Erros críticos não somem sozinhos para você ter tempo de ler
+    } else {
+        // Notificação normal para sucessos (verde)
+        t.className = `fixed bottom-10 right-10 green-gradient px-8 py-4 rounded-2xl shadow-2xl z-[100] font-black italic uppercase text-xs tracking-widest text-white transition-all duration-500`;
+        t.innerText = msg;
+        t.style.opacity = '1';
+        setTimeout(() => { t.style.opacity = '0'; }, 3000);
+    }
 }
 
 function logout() { localStorage.removeItem('trrx_token'); window.location.reload(); }

@@ -82,8 +82,9 @@ function sendUpdateLog(msg, color = "blue") {
         `).catch(() => {});
 
         if (color === "red") {
+            // REMOVIDO O SUBSTRING: Agora envia o erro completo sem cortes
             mainWindow.webContents.executeJavaScript(`
-                if(typeof createToast === 'function') createToast("DEBUG: ${msg.substring(0, 30)}...", "red");
+                if(typeof createToast === 'function') createToast("${msg}", "red");
             `).catch(() => {});
         }
     }

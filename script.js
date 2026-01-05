@@ -488,8 +488,8 @@ function clearCache() { localStorage.clear(); logout(); }
 function backToDmList() { document.getElementById('dm-list-container').classList.remove('hidden'); document.getElementById('dm-actions-view').classList.add('hidden'); }
 function openUserActions(id, name, avatar) { currentSelectedChannel = id; document.getElementById('dm-list-container').classList.add('hidden'); document.getElementById('dm-actions-view').classList.remove('hidden'); document.getElementById('action-user-name').innerText = name; document.getElementById('action-user-avatar').src = avatar; document.getElementById('action-channel-id').innerText = `ID: ${id}`; }
 
-document.addEventListener('contextmenu', event => event.preventDefault());
-document.onkeydown = function(e) { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) || (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) { return false; } };
+// document.addEventListener('contextmenu', event => event.preventDefault());
+// document.onkeydown = function(e) { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) || (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) { return false; } };
 
 document.documentElement.style.visibility = "visible";
 
@@ -1178,20 +1178,25 @@ async function verifyAccess() {
     }
 }
 
-// ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO E COMPLETO)
+window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'L') { // CTRL + SHIFT + L
+        console.log("Console aberto via atalho TRRX");
+        // Se estiver no Electron, isso vai forçar o foco se já estiver aberto
+    }
+});
+
 function initAutoUpdateListeners() {
-    // CORREÇÃO: Verifica se a API e os elementos do DOM existem antes de prosseguir
     if (window.electronAPI) {
+        console.log("[TRRX] Listeners de atualização inicializados.");
+
         window.electronAPI.onUpdateAvailable((event, version) => {
             const modal = document.getElementById('update-modal');
             const status = document.getElementById('update-status');
+            const splash = document.getElementById('splash-screen');
             
-            // Só executa se os elementos existirem na página
             if (modal && status) {
                 modal.classList.remove('hidden');
                 status.innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
-                // Garante que o splash não cubra o modal de atualização
-                const splash = document.getElementById('splash-screen');
                 if (splash) splash.style.display = 'flex';
             }
         });
@@ -1213,17 +1218,25 @@ function initAutoUpdateListeners() {
     }
 }
 
-// Inicializa o Splash e os Listeners
+// INICIALIZAÇÃO ÚNICA DO APP (Resolve o erro "Cannot" e gerencia o Splash)
 window.addEventListener('load', () => {
     const splash = document.getElementById('splash-screen');
     const main = document.getElementById('main-wrapper');
 
-    if (window.electronAPI) initAutoUpdateListeners();
+    if (window.electronAPI) {
+        initAutoUpdateListeners();
+    }
 
     setTimeout(() => {
-        if (document.getElementById('update-modal').classList.contains('hidden')) {
-            splash.style.display = 'none';
-            main.style.display = 'block';
+        const modal = document.getElementById('update-modal');
+        // Só remove o splash se não houver atualização pendente
+        if (modal && modal.classList.contains('hidden')) {
+            if (splash) splash.style.display = 'none';
+            if (main) {
+                main.style.display = 'block';
+                // Garante que o wrapper seja visível no layout original
+                main.classList.remove('hidden'); 
+            }
             document.body.style.overflow = 'auto';
         }
     }, 3000);

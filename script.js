@@ -482,7 +482,6 @@ function backToDmList() { document.getElementById('dm-list-container').classList
 function openUserActions(id, name, avatar) { currentSelectedChannel = id; document.getElementById('dm-list-container').classList.add('hidden'); document.getElementById('dm-actions-view').classList.remove('hidden'); document.getElementById('action-user-name').innerText = name; document.getElementById('action-user-avatar').src = avatar; document.getElementById('action-channel-id').innerText = `ID: ${id}`; }
 
 document.addEventListener('contextmenu', event => event.preventDefault());
-document.onkeydown = function(e) { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) || (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) { return false; } };
 
 document.documentElement.style.visibility = "visible";
 

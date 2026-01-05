@@ -3,31 +3,18 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
-// Configuração de logs
+// 1. Configuração de Logs Profissional
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 
-// --- CONFIGURAÇÃO DE SEGURANÇA E REDE (CORREÇÃO PARA REPO PRIVADO) ---
-if (app.isPackaged) {
-    autoUpdater.setFeedURL({
-        provider: "github",
-        owner: "pocoyojs",
-        repo: "trrxv2",
-        private: true // OBRIGATÓRIO para repositórios privados
-    });
-}
-
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.allowPrerelease = false;
-
+// 2. Variável Global para a Janela
 let mainWindow;
 
 /**
  * FUNÇÃO DE LOG DE FORÇA BRUTA (GIGANTE NA TELA)
+ * Melhorada para garantir visibilidade e suporte a quebra de linha.
  */
 function bruteForceLog(msg, isError = false) {
-    console.log(`[UPDATER DEBUG] ${msg}`);
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
         const bgColor = isError ? 'rgba(220, 38, 38, 0.95)' : 'rgba(10, 10, 12, 0.9)';
         const textColor = isError ? '#ffff00' : '#00ff00';
@@ -38,29 +25,57 @@ function bruteForceLog(msg, isError = false) {
                 if(!dbg) {
                     dbg = document.createElement('div');
                     dbg.id = 'trrx-debug-log';
-                    dbg.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:999999; background:${bgColor}; color:${textColor}; padding:40px; font-family:monospace; font-size:14px; overflow-y:auto; pointer-events:none; display:flex; flex-direction:column; gap:10px; border: 5px solid ${isError ? 'white' : '#3b82f6'};';
+                    dbg.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:999999; background:${bgColor}; color:${textColor}; padding:40px; font-family:monospace; font-size:13px; overflow-y:auto; pointer-events:none; display:flex; flex-direction:column; gap:5px; border: 4px solid white;';
                     document.body.appendChild(dbg);
                     
                     const title = document.createElement('h1');
                     title.innerText = "SISTEMA DE DIAGNÓSTICO AUTO-UPDATE";
-                    title.style.fontSize = "24px";
-                    title.style.marginBottom = "20px";
+                    title.style.fontSize = "22px";
+                    title.style.marginBottom = "15px";
                     dbg.appendChild(title);
                 }
                 const line = document.createElement('div');
-                line.style.cssText = 'border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom:5px; word-break:break-all;';
+                line.style.whiteSpace = 'pre-wrap';
+                line.style.wordBreak = 'break-all';
                 line.innerText = "[" + new Date().toLocaleTimeString() + "] " + ${JSON.stringify(msg)};
                 dbg.appendChild(line);
                 dbg.scrollTop = dbg.scrollHeight;
             })();
         `;
-        mainWindow.webContents.executeJavaScript(script).catch(e => console.error("Falha ao injetar log:", e));
+        mainWindow.webContents.executeJavaScript(script).catch(() => {});
     }
 }
 
 function sendToUI(channel, data) {
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
         mainWindow.webContents.send(channel, data);
+    }
+}
+
+// 3. Configuração do Updater (Forçada para Repositório Privado)
+function setupUpdater() {
+    if (app.isPackaged) {
+        // CORREÇÃO CRUCIAL: Usar o objeto de configuração para forçar o canal privado
+        autoUpdater.setFeedURL({
+            provider: "github",
+            owner: "pocoyojs",
+            repo: "trrxv2",
+            private: true
+        });
+
+        autoUpdater.autoDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+        autoUpdater.allowPrerelease = false;
+
+        setTimeout(() => {
+            bruteForceLog("Verificando atualizações via API GitHub...");
+            autoUpdater.checkForUpdatesAndNotify().catch(err => {
+                bruteForceLog("FALHA NA BUSCA: " + err.message, true);
+                if(err.message.includes("404")) {
+                    bruteForceLog("ERRO 404: O app não encontrou a release. Verifique se o GH_TOKEN foi injetado no BUILD.", true);
+                }
+            });
+        }, 4000);
     }
 }
 
@@ -87,44 +102,55 @@ function createWindow() {
     });
 
     mainWindow.webContents.on('dom-ready', () => {
-        bruteForceLog("Ambiente: " + (app.isPackaged ? "PRODUÇÃO" : "DESENVOLVIMENTO"));
-        bruteForceLog("Versão Instalada: " + app.getVersion());
+        bruteForceLog("App Packaged: " + app.isPackaged);
+        bruteForceLog("Versão Local: " + app.getVersion());
+        setupUpdater();
+    });
 
+    // Bloqueios de segurança
+    mainWindow.webContents.on('before-input-event', (event, input) => {
         if (app.isPackaged) {
-            setTimeout(() => {
-                bruteForceLog("Iniciando busca no GitHub (Modo Autenticado)...");
-                autoUpdater.checkForUpdatesAndNotify().catch(err => {
-                    bruteForceLog("ERRO NA CHAMADA: " + err.message, true);
-                    if(err.message.includes("404")) {
-                        bruteForceLog("DICA: Erro 404 em repo privado geralmente significa GH_TOKEN ausente no Build.", true);
-                    }
-                });
-            }, 4000); 
+            const blocked = input.key === 'F12' || 
+                           (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || 
+                           (input.control && ['R', 'U'].includes(input.key));
+            if (blocked) event.preventDefault();
         }
     });
 
     mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-// --- EVENTOS DO AUTO-UPDATER ---
-autoUpdater.on('checking-for-update', () => bruteForceLog("Verificando atualizações..."));
+// 4. Eventos do Auto-Updater
+autoUpdater.on('checking-for-update', () => bruteForceLog("Conectando ao GitHub API..."));
+
 autoUpdater.on('update-available', (info) => {
-    bruteForceLog("SUCESSO: v" + info.version + " encontrada!");
+    bruteForceLog("SUCESSO: Nova versão detectada!");
+    bruteForceLog("Versão encontrada: v" + info.version);
     sendToUI('update-available', info.version);
 });
-autoUpdater.on('update-not-available', () => bruteForceLog("Você já está na última versão."));
-autoUpdater.on('download-progress', (p) => {
-    bruteForceLog(`Baixando: ${Math.floor(p.percent)}%`);
-    sendToUI('download-progress', p.percent);
-});
-autoUpdater.on('update-downloaded', (info) => {
-    bruteForceLog("Download concluído. Reiniciando em 5s...");
-    sendToUI('update-downloaded');
-    setTimeout(() => { if (app.isPackaged) autoUpdater.quitAndInstall(false, true); }, 5000);
-});
-autoUpdater.on('error', (err) => {
-    bruteForceLog("FALHA: " + err.message, true);
+
+autoUpdater.on('update-not-available', () => {
+    bruteForceLog("Sincronizado: Você já possui a versão mais recente.");
 });
 
+autoUpdater.on('download-progress', (p) => {
+    bruteForceLog(`Progresso: ${Math.floor(p.percent)}% | Velocidade: ${Math.floor(p.bytesPerSecond / 1024)} KB/s`);
+    sendToUI('download-progress', p.percent);
+});
+
+autoUpdater.on('update-downloaded', () => {
+    bruteForceLog("Download concluído. Reiniciando em 5 segundos...", false);
+    sendToUI('update-downloaded');
+    setTimeout(() => { 
+        if (app.isPackaged) autoUpdater.quitAndInstall(false, true); 
+    }, 5000);
+});
+
+autoUpdater.on('error', (err) => {
+    log.error('Erro no Updater:', err);
+    bruteForceLog("ERRO NO UPDATER: " + err.message, true);
+});
+
+// Inicialização
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

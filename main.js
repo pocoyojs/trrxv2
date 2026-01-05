@@ -2,35 +2,33 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
-// Configuração de logs para diagnóstico de erros no repositório privado
-// Certifique-se de ter rodado: npm install electron-log
+// Configuração de logs para diagnóstico profundo
 autoUpdater.logger = require('electron-log');
 autoUpdater.logger.transports.file.level = 'info';
 
-// --- Configuração do Hazel (Repositório Privado) ---
-// O Hazel serve como ponte para o seu repositório privado no GitHub
+// --- CONFIGURAÇÃO DE SEGURANÇA E REDE ---
 if (app.isPackaged) {
     autoUpdater.setFeedURL({
         provider: 'generic',
-        url: 'https://trrx-update-server.vercel.app'
+        url: 'https://trrx-update-server.vercel.app',
+        headers: {
+            "Cache-Control": "no-cache",
+            "X-App-Version": app.getVersion()
+        }
     });
 }
 
-// Configurações de comportamento do Updater
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.allowPrerelease = false; // Busca apenas versões estáveis (Published)
+autoUpdater.allowPrerelease = false; 
 
 let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1100,
-    minHeight: 700,
-    resizable: true,
-    show: false,
+    width: 1280, height: 800,
+    minWidth: 1100, minHeight: 700,
+    resizable: true, show: false,
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
       devTools: !app.isPackaged,
@@ -45,71 +43,75 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   mainWindow.loadFile('index.html');
 
-  // Evento disparado quando a janela é exibida pela primeira vez
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
 
-  // CORREÇÃO CRUCIAL: Só inicia a busca por atualizações quando o DOM (HTML/JS) estiver pronto
-  // Isso evita que o sinal de "update-available" seja enviado antes do script.js estar ouvindo.
   mainWindow.webContents.on('dom-ready', () => {
     if (app.isPackaged) {
-      console.log("Monitorando atualizações via Hazel...");
       setTimeout(() => {
-        autoUpdater.checkForUpdatesAndNotify();
-      }, 5000); // Delay de 5 segundos para garantir estabilidade da conexão
+        console.log("[UPDATER] Iniciando busca...");
+        autoUpdater.checkForUpdatesAndNotify().catch(err => {
+            sendUpdateLog(`ERRO CRÍTICO NA CHAMADA: ${err.message}`, "red");
+        });
+      }, 5000); 
     }
   });
 
-  // --- Bloqueios de Segurança ---
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const blocked = input.key === 'F12' || (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || (input.control && ['R', 'U'].includes(input.key));
     if (blocked) event.preventDefault();
   });
 }
 
-// --- Eventos do Auto-Updater (Comunicação com o script.js via Preload) ---
+// --- FUNÇÃO AUXILIAR DE LOG VISUAL ---
+function sendUpdateLog(msg, color = "blue") {
+    if (mainWindow) {
+        // Log no console do DevTools
+        mainWindow.webContents.executeJavaScript(`console.log("%c[UPDATER] ${msg}", "color: ${color === 'red' ? '#ef4444' : '#3b82f6'}; font-weight: bold;")`);
+        // Toast se for erro
+        if (color === "red") {
+            mainWindow.webContents.executeJavaScript(`if(typeof createToast === 'function') createToast("DEBUG: ${msg.substring(0, 30)}...", "red")`);
+        }
+    }
+}
+
+// --- EVENTOS DO AUTO-UPDATER COM LOGS ESPECÍFICOS ---
 
 autoUpdater.on('checking-for-update', () => {
-    console.log('[UPDATER] Verificando servidor Hazel...');
+    sendUpdateLog("Conectando ao servidor Hazel...");
 });
 
 autoUpdater.on('update-available', (info) => {
-    console.log('[UPDATER] Versão encontrada no servidor: ' + info.version);
-    if (mainWindow) {
-        mainWindow.webContents.send('update-available', info.version);
-    }
+    sendUpdateLog(`Nova versão detectada: v${info.version}`, "green");
+    if (mainWindow) mainWindow.webContents.send('update-available', info.version);
+});
+
+autoUpdater.on('update-not-available', () => {
+    sendUpdateLog("Nenhuma atualização encontrada (App está atualizado).");
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-    if (mainWindow) {
-        mainWindow.webContents.send('download-progress', progressObj.percent);
-    }
+    if (mainWindow) mainWindow.webContents.send('download-progress', progressObj.percent);
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-    console.log('[UPDATER] Download concluído: v' + info.version);
-    if (mainWindow) {
-        mainWindow.webContents.send('update-downloaded');
-    }
-    // Delay de segurança antes de reiniciar
-    setTimeout(() => {
-        autoUpdater.quitAndInstall(false, true);
-    }, 3000);
+    sendUpdateLog(`Download concluído da v${info.version}. Reiniciando em 3s...`, "green");
+    if (mainWindow) mainWindow.webContents.send('update-downloaded');
+    setTimeout(() => { autoUpdater.quitAndInstall(false, true); }, 3000);
 });
 
 autoUpdater.on('error', (err) => {
-    console.error('[UPDATER] Erro detectado:', err.message);
-    if (mainWindow) {
-        // Envia o erro real para o console do site para podermos ler
-        mainWindow.webContents.executeJavaScript(`console.error("ERRO NO UPDATER: ${err.message}")`);
-        mainWindow.webContents.executeJavaScript(`if(typeof createToast === 'function') createToast("ERRO AO BUSCAR UPDATE", "red")`);
-    }
+    let errorDetail = "Erro desconhecido";
+    
+    if (err.message.includes("404")) errorDetail = "404: Servidor Hazel não achou a Release ou o latest.yml no GitHub.";
+    else if (err.message.includes("401")) errorDetail = "401: Token (TOKEN) na Vercel recusado pelo GitHub.";
+    else if (err.message.includes("ENOTFOUND")) errorDetail = "Erro de Conexão: Verifique seu link da Vercel no main.js.";
+    else if (err.message.includes("manifest")) errorDetail = "O arquivo latest.yml está corrompido ou incompleto.";
+    
+    console.error(`[UPDATER ERROR] ${err.stack}`);
+    sendUpdateLog(errorDetail, "red");
 });
 
-// Inicialização do App
 app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => { 
-    if (process.platform !== 'darwin') app.quit(); 
-});
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

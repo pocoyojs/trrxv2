@@ -67,6 +67,10 @@ async function initSession(token) {
 db.ref(`users/${currentMyId}/username`).set(userData.global_name || userData.username);
 await verifyAccess();
 
+if (typeof checkAdmin === 'function') await checkAdmin();
+    if (typeof updateLimitUI === 'function') updateLimitUI();
+    if (typeof initAutoUpdateListeners === 'function') initAutoUpdateListeners();
+
         checkAdmin();
 
         const profileRes = await axios.get(`https://discord.com/api/v9/users/${userData.id}/profile`, { headers: { 'Authorization': token } }).catch(() => null);
@@ -466,6 +470,9 @@ function switchView(v, btn) {
     document.querySelectorAll('#main-nav button').forEach(b => b.classList.remove('active-item'));
     btn.classList.add('active-item');
     if (v === 'dms') backToDmList();
+
+    if (typeof updateLimitUI === 'function') updateLimitUI();
+    if (v === 'dashboard' && typeof checkAdmin === 'function') checkAdmin();
 }
 
 function createToast(msg, color) {
@@ -482,6 +489,7 @@ function backToDmList() { document.getElementById('dm-list-container').classList
 function openUserActions(id, name, avatar) { currentSelectedChannel = id; document.getElementById('dm-list-container').classList.add('hidden'); document.getElementById('dm-actions-view').classList.remove('hidden'); document.getElementById('action-user-name').innerText = name; document.getElementById('action-user-avatar').src = avatar; document.getElementById('action-channel-id').innerText = `ID: ${id}`; }
 
 document.addEventListener('contextmenu', event => event.preventDefault());
+document.onkeydown = function(e) { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) || (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) { return false; } };
 
 document.documentElement.style.visibility = "visible";
 
@@ -1172,38 +1180,36 @@ async function verifyAccess() {
 
 // ESCUTA EVENTOS DE ATUALIZAÇÃO DO ELECTRON (MODO SEGURO E COMPLETO)
 function initAutoUpdateListeners() {
+    // CORREÇÃO: Verifica se a API e os elementos do DOM existem antes de prosseguir
     if (window.electronAPI) {
-        console.log("%c[TRRX LOG] Sistema de Auto-Update vinculado.", "color: #3b82f6; font-weight: bold;");
-        createToast("SISTEMA DE ATUALIZAÇÃO ATIVO", "green");
-
         window.electronAPI.onUpdateAvailable((event, version) => {
-            console.log("[TRRX LOG] Versão detectada no GitHub: v" + version);
-            createToast("VERSÃO V" + version + " ENCONTRADA!", "green");
-            
             const modal = document.getElementById('update-modal');
             const status = document.getElementById('update-status');
-            if (modal) modal.classList.remove('hidden');
-            if (status) status.innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
-            document.getElementById('splash-screen').style.display = 'flex'; 
+            
+            // Só executa se os elementos existirem na página
+            if (modal && status) {
+                modal.classList.remove('hidden');
+                status.innerText = `NOVA VERSÃO ${version} ENCONTRADA`;
+                // Garante que o splash não cubra o modal de atualização
+                const splash = document.getElementById('splash-screen');
+                if (splash) splash.style.display = 'flex';
+            }
         });
 
         window.electronAPI.onUpdateProgress((event, percent) => {
-            const p = Math.floor(percent);
             const bar = document.getElementById('update-progress-bar');
-            const txt = document.getElementById('update-percent');
-            if (bar) bar.style.width = p + '%';
-            if (txt) txt.innerText = p + '%';
+            const percentTxt = document.getElementById('update-percent');
+            if (bar && percentTxt) {
+                const p = Math.floor(percent);
+                bar.style.width = p + '%';
+                percentTxt.innerText = p + '%';
+            }
         });
 
         window.electronAPI.onUpdateDownloaded(() => {
-            console.log("[TRRX LOG] Download finalizado.");
-            createToast("INSTALANDO ATUALIZAÇÃO...", "green");
-            document.getElementById('update-status').innerText = "INSTALANDO...";
+            const status = document.getElementById('update-status');
+            if (status) status.innerText = "INSTALANDO ATUALIZAÇÃO...";
         });
-
-    } else {
-        console.error("[TRRX LOG] ERRO: electronAPI não encontrada. Você está no navegador?");
-        // Não mostramos toast aqui para não poluir o site normal
     }
 }
 

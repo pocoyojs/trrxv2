@@ -6,6 +6,15 @@ const { autoUpdater } = require('electron-updater');
 autoUpdater.logger = require('electron-log');
 autoUpdater.logger.transports.file.level = 'info';
 
+let log;
+try {
+    log = require('electron-log');
+    autoUpdater.logger = log;
+    autoUpdater.logger.transports.file.level = 'info';
+} catch (e) {
+    console.error("Módulo de log não encontrado. Continuando sem logs de arquivo.");
+}
+
 // --- CONFIGURAÇÃO DE SEGURANÇA E REDE ---
 if (app.isPackaged) {
     autoUpdater.setFeedURL({

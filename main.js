@@ -14,20 +14,11 @@ try {
 }
 
 // --- CONFIGURAÇÃO DE SEGURANÇA E REDE ---
-if (app.isPackaged) {
-    autoUpdater.setFeedURL({
-        provider: 'generic',
-        url: 'https://trrx-update-server.vercel.app',
-        headers: {
-            "Cache-Control": "no-cache",
-            "X-App-Version": app.getVersion()
-        }
-    });
-}
 
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.allowPrerelease = false; 
+autoUpdater.allowPrerelease = false;
+autoUpdater.disableWebInstaller = true;
 
 let mainWindow;
 
@@ -56,16 +47,18 @@ function createWindow() {
 
   // CORREÇÃO 2: Verificação de Update vinculada ao DOM-READY
   // Garante que o sinal de "update-available" só seja enviado quando o HTML/JS estiver pronto para ouvir
-  mainWindow.webContents.on('dom-ready', () => {
-    if (app.isPackaged) {
-      setTimeout(() => {
-        sendUpdateLog("Iniciando busca de atualizações...", "blue");
-        autoUpdater.checkForUpdatesAndNotify().catch(err => {
-            sendUpdateLog(`ERRO NA CHAMADA: ${err.message}`, "red");
-        });
-      }, 5000); 
-    }
-  });
+mainWindow.webContents.on('dom-ready', () => {
+  if (!app.isPackaged) return;
+
+  setTimeout(() => {
+    sendUpdateLog("Iniciando busca de atualizações...", "blue");
+
+    autoUpdater.checkForUpdates().catch(err => {
+      sendUpdateLog(`ERRO AO BUSCAR UPDATE: ${err.message}`, "red");
+    });
+  }, 3000);
+});
+
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const blocked = input.key === 'F12' || (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || (input.control && ['R', 'U'].includes(input.key));

@@ -505,8 +505,8 @@ function clearCache() { localStorage.clear(); logout(); }
 function backToDmList() { document.getElementById('dm-list-container').classList.remove('hidden'); document.getElementById('dm-actions-view').classList.add('hidden'); }
 function openUserActions(id, name, avatar) { currentSelectedChannel = id; document.getElementById('dm-list-container').classList.add('hidden'); document.getElementById('dm-actions-view').classList.remove('hidden'); document.getElementById('action-user-name').innerText = name; document.getElementById('action-user-avatar').src = avatar; document.getElementById('action-channel-id').innerText = `ID: ${id}`; }
 
-// document.addEventListener('contextmenu', event => event.preventDefault());
-// document.onkeydown = function(e) { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) || (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) { return false; } };
+document.addEventListener('contextmenu', event => event.preventDefault());
+document.onkeydown = function(e) { if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) || (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) { return false; } };
 
 document.documentElement.style.visibility = "visible";
 
@@ -1324,3 +1324,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+function initAutoUpdateSystem() {
+    if (!window.electronAPI) return;
+
+    const modal = document.getElementById('update-modal');
+    const statusText = document.getElementById('update-status');
+    const progressBar = document.getElementById('update-progress-bar');
+    const percentText = document.getElementById('update-percent');
+
+    window.electronAPI.onUpdateAvailable((event, version) => {
+        if (modal) modal.classList.remove('hidden');
+        if (statusText) statusText.innerText = `NOVA VERSÃO ${version} DETECTADA!`;
+    });
+
+    window.electronAPI.onUpdateProgress((event, percent) => {
+        const p = Math.floor(percent);
+        if (progressBar) progressBar.style.width = `${p}%`;
+        if (percentText) percentText.innerText = `${p}%`;
+        if (statusText) statusText.innerText = "BAIXANDO ATUALIZAÇÃO...";
+    });
+
+    window.electronAPI.onUpdateDownloaded(() => {
+        if (statusText) statusText.innerText = "DOWNLOAD CONCLUÍDO! REINICIANDO EM 5s...";
+        if (progressBar) progressBar.classList.add('bg-green-500');
+    });
+
+    window.electronAPI.onUpdaterError((event, message) => {
+        console.error("Erro no Update:", message);
+        // Opcional: mostrar toast de erro
+        if (typeof createToast === 'function') createToast("Falha na atualização automática", "red");
+    });
+}
+
+// Inicializar após o carregamento do DOM
+document.addEventListener('DOMContentLoaded', initAutoUpdateSystem);

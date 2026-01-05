@@ -1,6 +1,6 @@
 {
   "name": "trrx",
-  "version": "3.0.3",
+  "version": "1.0.0",
   "description": "Descrição do meu app TRRX",
   "author": "pocwyo",
   "repository": {
@@ -14,16 +14,17 @@
     "deploy": "electron-builder --win --publish always"
   },
   "build": {
-    "appId": "com.meuapp.desktop",
-    "productName": "TRRX",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "pocoyojs",
-        "repo": "trrxv2",
-        "private": true
-      }
-    ],
+"appId": "com.trrx.desktop",
+  "productName": "TRRX",
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "pocoyojs",
+      "repo": "trrxv2",
+      "private": true,
+      "releaseType": "release"
+    }
+  ],
     "win": {
       "target": ["nsis"],
       "icon": "icon.ico"

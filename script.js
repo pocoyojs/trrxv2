@@ -974,6 +974,27 @@ async function startServerClearProcess() { // Nome alterado para ser chamado pel
         while (hasMore && !isServerClearCancelled) {
             while (isServerClearPaused && !isServerClearCancelled) { await new Promise(r => setTimeout(r, 500)); }
             
+            async function saveUsageFirebase(userId, deletedCount) {
+    const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const usageRef = db.ref(`users/${userId}/usage`);
+
+    const snapshot = await usageRef.get();
+    const data = snapshot.exists() ? snapshot.val() : {};
+
+    // Reseta automaticamente todo dia 1
+    if (data.month !== monthKey) {
+        await usageRef.set({
+            dmDeleted: deletedCount,
+            month: monthKey
+        });
+    } else {
+        await usageRef.update({
+            dmDeleted: (data.dmDeleted || 0) + deletedCount
+        });
+    }
+}
+
+
             try {
                 let url = `https://discord.com/api/v9/channels/${channel.id}/messages?limit=100`;
                 if (lastId) url += `&before=${lastId}`;
@@ -999,10 +1020,7 @@ async function startServerClearProcess() { // Nome alterado para ser chamado pel
                     // Incremento Global e Persistência
                     if (userPlan.type === 'FREE') {
                         dmDeleteCounter++;
-                        localStorage.setItem(`usage_${currentMyId}`, JSON.stringify({ 
-                            month: new Date().getMonth() + "-" + new Date().getFullYear(), 
-                            count: dmDeleteCounter 
-                        }));
+                await saveUsageFirebase(currentMyId, messagesDeletedNow);
                         if (dmDeleteCounter >= DM_FREE_LIMIT) {
                             createToast("LIMITE ATINGIDO", "red");
                             isServerClearCancelled = true;

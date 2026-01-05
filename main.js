@@ -1,9 +1,9 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 
 // Configuração de logs profissional
-const log = require('electron-log');
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 log.info('App iniciando...');
@@ -16,44 +16,54 @@ autoUpdater.allowPrerelease = false;
 let mainWindow;
 
 /**
- * Função utilitária para enviar mensagens para o front-end com segurança.
- * Verifica se a janela ainda existe antes de tentar a comunicação,
- * evitando erros do tipo "Cannot read property of null".
+ * FUNÇÃO DE LOG DE FORÇA BRUTA (GIGANTE NA TELA)
+ * Injeta um terminal de diagnóstico diretamente no HTML para capturar o erro exato.
  */
+function bruteForceLog(msg, isError = false) {
+    console.log(`[UPDATER DEBUG] ${msg}`);
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        const bgColor = isError ? 'rgba(220, 38, 38, 0.95)' : 'rgba(10, 10, 12, 0.9)';
+        const textColor = isError ? '#ffff00' : '#00ff00';
+        
+        const script = `
+            (function() {
+                let dbg = document.getElementById('trrx-debug-log');
+                if(!dbg) {
+                    dbg = document.createElement('div');
+                    dbg.id = 'trrx-debug-log';
+                    dbg.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:999999; background:${bgColor}; color:${textColor}; padding:40px; font-family:monospace; font-size:14px; overflow-y:auto; pointer-events:none; display:flex; flex-direction:column; gap:10px; border: 5px solid ${isError ? 'white' : '#3b82f6'};';
+                    document.body.appendChild(dbg);
+                    
+                    const title = document.createElement('h1');
+                    title.innerText = "SISTEMA DE DIAGNÓSTICO AUTO-UPDATE";
+                    title.style.fontSize = "24px";
+                    title.style.marginBottom = "20px";
+                    dbg.appendChild(title);
+                }
+                const line = document.createElement('div');
+                line.style.cssText = 'border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom:5px; word-break:break-all;';
+                line.innerText = "[" + new Date().toLocaleTimeString() + "] " + ${JSON.stringify(msg)};
+                dbg.appendChild(line);
+                dbg.scrollTop = dbg.scrollHeight;
+            })();
+        `;
+        mainWindow.webContents.executeJavaScript(script).catch(e => console.error("Falha ao injetar log:", e));
+    }
+}
+
 function sendToUI(channel, data) {
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
         mainWindow.webContents.send(channel, data);
     }
 }
 
-/**
- * Função para registrar logs no console do DevTools do usuário em tempo real.
- */
-function logToUI(msg, color = "blue") {
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
-        mainWindow.webContents.executeJavaScript(`
-            console.log("%c[UPDATER] ${msg}", "color: ${color === 'red' ? '#ef4444' : '#3b82f6'}; font-weight: bold;");
-        `).catch(() => {});
-        
-        if (color === "red") {
-            mainWindow.webContents.executeJavaScript(`
-                if(typeof createToast === 'function') createToast("${msg}", "red");
-            `).catch(() => {});
-        }
-    }
-}
-
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        minWidth: 1100,
-        minHeight: 700,
-        resizable: true,
-        show: false,
+        width: 1280, height: 800,
+        minWidth: 1100, minHeight: 700,
+        resizable: true, show: false,
         icon: path.join(__dirname, 'icon.ico'),
         webPreferences: {
-            devTools: !app.isPackaged,
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
@@ -69,35 +79,31 @@ function createWindow() {
         mainWindow.show();
     });
 
-    /**
-     * O sistema de update só inicia quando o DOM está 100% pronto.
-     * Isso garante que os listeners no script.js já foram registrados
-     * antes de enviarmos os sinais de atualização.
-     */
     mainWindow.webContents.on('dom-ready', () => {
+        bruteForceLog("Ambiente: " + (app.isPackaged ? "PRODUÇÃO" : "DESENVOLVIMENTO"));
+        bruteForceLog("Versão Instalada: " + app.getVersion());
+
         if (app.isPackaged) {
             setTimeout(() => {
-                logToUI("Verificando atualizações no GitHub...");
+                bruteForceLog("Chamando autoUpdater.checkForUpdatesAndNotify()...");
                 autoUpdater.checkForUpdatesAndNotify().catch(err => {
-                    logToUI(`Erro na conexão de update: ${err.message}`, "red");
+                    bruteForceLog("ERRO CRÍTICO NA CHAMADA INICIAL: " + err.stack, true);
                 });
-            }, 5000); // Delay de 5s para garantir estabilidade da conexão
+            }, 4000); 
+        } else {
+            bruteForceLog("Auto-update ignorado: O app não está empacotado.");
         }
     });
 
-    // Bloqueios de segurança para ferramentas de desenvolvedor em produção
+    // Bloqueios de segurança
     mainWindow.webContents.on('before-input-event', (event, input) => {
         if (app.isPackaged) {
-            const blocked = input.key === 'F12' || 
-                           (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || 
-                           (input.control && ['R', 'U'].includes(input.key));
+            const blocked = input.key === 'F12' || (input.control && input.shift && ['I', 'J', 'C'].includes(input.key)) || (input.control && ['R', 'U'].includes(input.key));
             if (blocked) event.preventDefault();
         }
     });
 
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
+    mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 // ==========================================
@@ -105,31 +111,30 @@ function createWindow() {
 // ==========================================
 
 autoUpdater.on('checking-for-update', () => {
-    log.info('Checando versão...');
+    bruteForceLog("Conectando ao GitHub para verificar o arquivo latest.yml...");
 });
 
 autoUpdater.on('update-available', (info) => {
-    log.info('Update disponível encontrado.');
-    logToUI(`Nova versão v${info.version} detectada!`, "green");
+    bruteForceLog("SUCESSO: Nova versão detectada!");
+    bruteForceLog("Versão encontrada: v" + info.version);
+    bruteForceLog("Release Date: " + info.releaseDate);
     sendToUI('update-available', info.version);
 });
 
 autoUpdater.on('update-not-available', () => {
-    log.info('App atualizado.');
-    logToUI("Sistema já está na versão mais recente.");
+    bruteForceLog("O servidor respondeu: Você já possui a versão mais recente.");
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-    log.info(`Baixando: ${progressObj.percent}%`);
+    bruteForceLog(`Progresso: ${Math.floor(progressObj.percent)}% | Velocidade: ${Math.floor(progressObj.bytesPerSecond / 1024)} KB/s`);
     sendToUI('download-progress', progressObj.percent);
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-    log.info('Download concluído.');
-    logToUI(`v${info.version} baixada. Reiniciando para aplicar...`, "green");
+    bruteForceLog("DOWNLOAD COMPLETO: Preparando instalação...", false);
+    bruteForceLog("O aplicativo irá reiniciar em 5 segundos.");
     sendToUI('update-downloaded');
     
-    // Força a instalação automática após 5 segundos
     setTimeout(() => {
         if (app.isPackaged) {
             autoUpdater.quitAndInstall(false, true);
@@ -139,7 +144,9 @@ autoUpdater.on('update-downloaded', (info) => {
 
 autoUpdater.on('error', (err) => {
     log.error('Erro fatal no Updater:', err);
-    logToUI(`FALHA NO AUTO-UPDATE: ${err.message}`, "red");
+    bruteForceLog("FALHA NO AUTO-UPDATE!", true);
+    bruteForceLog("MENSAGEM: " + err.message, true);
+    bruteForceLog("STACK TRACE: " + err.stack, true);
 });
 
 // ==========================================
@@ -148,7 +155,6 @@ autoUpdater.on('error', (err) => {
 
 app.whenReady().then(() => {
     createWindow();
-
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
